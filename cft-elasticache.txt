@@ -1,0 +1,468 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Launch an ElastiCache Replication Group with Multi-AZ support in a particular VPC specifying then a Subnet Group and a Security Group.",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "General"
+          },
+          "Parameters": [
+            "vpcName",
+            "envName",
+            "applicationName",
+            "moduleName"
+          ]
+        },
+        {
+          "Label": {
+            "default": "ElastiCache details"
+          },
+          "Parameters": [
+            "CacheNodeType",
+            "NumCacheClusters",
+            "RedisPort",
+            "ReplicationGroupDescription",
+            "MultiAZSupport",
+            "AutoMinorVersionUpgrade",
+            "PreferredMaintenanceWindow",
+            "SnapshotWindow",
+            "SnapshotRetentionLimit"
+          ]
+        }
+      ]
+    }
+  },
+  "Mappings": {
+    "vpcDetails": {
+      "development": {
+        "vpc": "vpc-0610bc62",
+        "publicSubnet": [
+          "subnet-edab469b",
+          "subnet-4b888c12"
+        ],
+        "privateSubnet": [
+          "subnet-cac31bf7",
+          "subnet-dc2561b9"
+        ],
+        "singlePublicSubnet": "subnet-edab469b",
+        "singlePrivateSubnet": "subnet-cac31bf7"
+      },
+      "production": {
+        "vpc": "vpc-ff270984",
+        "publicSubnet": [
+          "subnet-c2189988",
+          "subnet-08857854",
+          "subnet-60d31207",
+          "subnet-4718e769"
+        ],
+        "privateSubnet": [
+          "subnet-181e9f52",
+          "subnet-e28b76be",
+          "subnet-3ad8195d",
+          "subnet-190ff037"
+        ],
+        "singlePublicSubnet": "subnet-c2189988",
+        "singlePrivateSubnet": "subnet-181e9f52"
+      },
+      "stage": {
+        "vpc": "vpc-256d1e5e",
+        "publicSubnet": [
+          "subnet-d68a2f9c",
+          "subnet-82c4d5df",
+          "subnet-cbc52bac",
+          "subnet-89feeda6"
+        ],
+        "privateSubnet": [
+          "subnet-5e9f3a14",
+          "subnet-a3c9d8fe",
+          "subnet-9ffb15f8",
+          "subnet-0af9ea25"
+        ],
+        "singlePublicSubnet": "subnet-d68a2f9c",
+        "singlePrivateSubnet": "subnet-5e9f3a14"
+      }
+    }
+  },
+  "Parameters": {
+    "vpcName": {
+      "Type": "String",
+      "AllowedValues": [
+        "development",
+        "stage",
+        "production"
+      ],
+      "Default": "development",
+      "ConstraintDescription": "Select appropriate VPC network",
+      "Description": "VPC name"
+    },
+    "applicationName": {
+      "Type": "String",
+      "Default": "co",
+      "Description": "Enter the application name"
+    },
+    "envName": {
+      "Type": "String",
+      "AllowedValues": [
+        "dev",
+        "stg",
+        "prd"
+      ],
+      "ConstraintDescription": "Select appropriate environment",
+      "Description": "Environment name"
+    },
+    "moduleName": {
+      "Type": "String",
+      "Default": "redis"
+    },
+    "CacheNodeType": {
+      "Description": "The instance type the nodes will launch under.",
+      "Type": "String",
+      "Default": "cache.t2.micro",
+      "AllowedValues": [
+        "cache.t2.micro",
+        "cache.t2.small",
+        "cache.t2.medium",
+        "cache.m3.medium",
+        "cache.m3.large",
+        "cache.m3.xlarge",
+        "cache.m3.2xlarge",
+        "cache.r3.large",
+        "cache.r3.xlarge",
+        "cache.r3.2xlarge",
+        "cache.r3.4xlarge",
+        "cache.r3.8xlarge"
+      ]
+    },
+    "AutoMinorVersionUpgrade": {
+      "Description": "Whether or not minor version upgrades to the cache engine should be applied automatically during the maintenance window.",
+      "Type": "String",
+      "Default": "true",
+      "AllowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "MultiAZSupport": {
+      "Description": "Indicates whether Multi-AZ is enabled. When Multi-AZ is enabled, a read-only replica is automatically promoted to a read-write primary cluster if the existing primary cluster fails. If you specify true, you must specify a value greater than 1 for the NumCacheClusters property.",
+      "Type": "String",
+      "Default": "true",
+      "AllowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "NumCacheClusters": {
+      "Description": "The number of cache clusters for this replication group. If MultiAZ support is enabled, you must specify a value greater than 1.",
+      "Default": "2",
+      "Type": "Number",
+      "MinValue": "1",
+      "MaxValue": "6"
+    },
+    "RedisPort": {
+      "Description": "The port number on which each member of the replication group accepts connections.",
+      "Type": "Number",
+      "Default": "6379",
+      "MinValue": "1",
+      "MaxValue": "65535"
+    },
+    "ReplicationGroupDescription": {
+      "Description": "The description of the replication group.",
+      "Type": "String",
+      "Default": "Example replication group"
+    },
+    "SnapshotRetentionLimit": {
+      "Description": "The number of days that ElastiCache retains automatic snapshots before deleting them.",
+      "Type": "Number",
+      "Default": "7"
+    },
+    "SnapshotWindow": {
+      "Description": "The time range (in UTC) when ElastiCache takes a daily snapshot of your node group.",
+      "Type": "String",
+      "Default": "05:00-09:00",
+      "AllowedPattern": "\\d{2}:\\d{2}-\\d{2}:\\d{2}",
+      "ConstraintDescription": "must be a valid timestamp range, for example 05:00-09:00"
+    },
+    "PreferredMaintenanceWindow": {
+      "Description": "The weekly time range during which system maintenance can occur. Use the following format to specify a time range: ddd:hh24:mi-ddd:hh24:mi (24H Clock UTC).",
+      "Type": "String",
+      "Default": "sun:22:00-sun:23:30",
+      "AllowedPattern": "(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}-(mon|tue|wed|thu|fri|sat|sun):\\d{2}:\\d{2}",
+      "ConstraintDescription": "must be a valid timestamp range with day of week, for example sun:22:00-sun:23:30"
+    }
+  },
+  "Resources": {
+    "SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "applicationName"
+              },
+              {
+                "Ref": "envName"
+              },
+              {
+                "Ref": "moduleName"
+              },
+              "cache-sg"
+            ]
+          ]
+        },
+        "GroupDescription": "Security group for redis ElastiCache",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": {
+              "Ref": "RedisPort"
+            },
+            "ToPort": {
+              "Ref": "RedisPort"
+            },
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": {
+          "Fn::FindInMap": [
+            "vpcDetails",
+            {
+              "Ref": "vpcName"
+            },
+            "vpc"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Env",
+            "Value": {
+              "Ref": "envName"
+            }
+          },
+          {
+            "Key": "Service",
+            "Value": {
+              "Ref": "moduleName"
+            }
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "applicationName"
+            }
+          },
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "applicationName"
+                  },
+                  {
+                    "Ref": "envName"
+                  },
+                  {
+                    "Ref": "moduleName"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SubnetGroup": {
+      "Type": "AWS::ElastiCache::SubnetGroup",
+      "Properties": {
+        "CacheSubnetGroupName": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "applicationName"
+              },
+              {
+                "Ref": "envName"
+              },
+              {
+                "Ref": "moduleName"
+              },
+              "cache-subnet"
+            ]
+          ]
+        },
+        "Description": "Subnet Group for Example Replication Group",
+        "SubnetIds": {
+          "Fn::FindInMap": [
+            "vpcDetails",
+            {
+              "Ref": "vpcName"
+            },
+            "publicSubnet"
+          ]
+        }
+      }
+    },
+    "ReplicationGroup": {
+      "Type": "AWS::ElastiCache::ReplicationGroup",
+      "Properties": {
+        "AutomaticFailoverEnabled": {
+          "Ref": "MultiAZSupport"
+        },
+        "AutoMinorVersionUpgrade": {
+          "Ref": "AutoMinorVersionUpgrade"
+        },
+        "CacheNodeType": {
+          "Ref": "CacheNodeType"
+        },
+        "CacheSubnetGroupName": {
+          "Ref": "SubnetGroup"
+        },
+        "Engine": "redis",
+        "EngineVersion": "3.2.10",
+        "NumCacheClusters": {
+          "Ref": "NumCacheClusters"
+        },
+        "Port": {
+          "Ref": "RedisPort"
+        },
+        "PreferredMaintenanceWindow": {
+          "Ref": "PreferredMaintenanceWindow"
+        },
+        "ReplicationGroupId": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "applicationName"
+              },
+              {
+                "Ref": "envName"
+              },
+              {
+                "Ref": "moduleName"
+              },
+              "cluster"
+            ]
+          ]
+        },
+        "ReplicationGroupDescription": {
+          "Ref": "ReplicationGroupDescription"
+        },
+        "SecurityGroupIds": [
+          {
+            "Ref": "SecurityGroup"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Env",
+            "Value": {
+              "Ref": "envName"
+            }
+          },
+          {
+            "Key": "Service",
+            "Value": {
+              "Ref": "moduleName"
+            }
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "applicationName"
+            }
+          },
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "applicationName"
+                  },
+                  {
+                    "Ref": "envName"
+                  },
+                  {
+                    "Ref": "moduleName"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "SnapshotRetentionLimit": {
+          "Ref": "SnapshotRetentionLimit"
+        },
+        "SnapshotWindow": {
+          "Ref": "SnapshotWindow"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "CacheClusterEndpoint": {
+      "Description": "ElastiCache - redis primary endpoint",
+      "Value": {
+        "Fn::GetAtt": [
+          "ReplicationGroup",
+          "PrimaryEndPoint.Address"
+        ]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "applicationName"
+              },
+              {
+                "Ref": "envName"
+              },
+              {
+                "Ref": "moduleName"
+              },
+              "primary-endpoint"
+            ]
+          ]
+        }
+      }
+    },
+    "CacheClusterPort": {
+      "Description": "ElastiCache - redis port",
+      "Value": {
+        "Fn::GetAtt": [
+          "ReplicationGroup",
+          "PrimaryEndPoint.Port"
+        ]
+      },
+      "Export": {
+        "Name": {
+          "Fn::Join": [
+            "-",
+            [
+              {
+                "Ref": "applicationName"
+              },
+              {
+                "Ref": "envName"
+              },
+              {
+                "Ref": "moduleName"
+              },
+              "port"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
